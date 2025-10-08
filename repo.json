@@ -1,0 +1,8 @@
+{
+"name": "CSIndo",
+"description": "CS Indonesia Repo Custom",
+"manifestVersion": 1,
+"pluginLists": [
+"https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/plugins.json"
+]
+}

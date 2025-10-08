@@ -1,0 +1,293 @@
+[
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=animasu.cc&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 26034,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated",
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "OVA",
+            "Anime"
+        ],
+        "version": 13,
+        "internalName": "Animasu",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/Animasu.cs3",
+        "name": "Animasu"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=animeindo.xyz&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 16118,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated",
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "OVA",
+            "Anime"
+        ],
+        "version": 24,
+        "internalName": "AnimeIndo",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/AnimeIndo.cs3",
+        "name": "AnimeIndo"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=154.26.137.28&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 17700,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated",
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "Anime",
+            "OVA"
+        ],
+        "version": 15,
+        "internalName": "AnimeSail",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/AnimeSail.cs3",
+        "name": "AnimeSail"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=dramaid.nl&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 22037,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated",
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "Movie"
+        ],
+        "version": 13,
+        "internalName": "Dramaid",
+        "description": "Include: Oppadrama",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/Dramaid.cs3",
+        "name": "Dramaid"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=www.dubbindo.site&sz=256",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 12519,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated",
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Movie",
+            "Cartoon",
+            "Anime"
+        ],
+        "version": 2,
+        "internalName": "Dubbindo",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/Dubbindo.cs3",
+        "name": "Dubbindo"
+    },
+    {
+        "iconUrl": "hhttps://tv7.idlix.asia/wp-content/uploads/2020/07/logov4.png",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 29250,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated",
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "TvSeries",
+            "Movie",
+            "Anime",
+            "AsianDrama"
+        ],
+        "version": 19,
+        "internalName": "Idlix",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/Idlix.cs3",
+        "name": "Idlix"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=github.com&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 21400,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "Live"
+        ],
+        "version": 6,
+        "internalName": "IndoTV",
+        "description": "Indo IPTV",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/IndoTV.cs3",
+        "name": "IndoTV"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=kuramanime.com&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 21669,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "Anime",
+            "OVA"
+        ],
+        "version": 39,
+        "internalName": "Kuramanime",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/Kuramanime.cs3",
+        "name": "Kuramanime"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=kuronime.biz&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 25319,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated",
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "Anime",
+            "OVA"
+        ],
+        "version": 21,
+        "internalName": "Kuronime",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/Kuronime.cs3",
+        "name": "Kuronime"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=amp.lk21official.mom&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 20691,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated",
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 23,
+        "internalName": "LayarKaca",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/LayarKaca.cs3",
+        "name": "LayarKaca"
+    },
+    {
+        "iconUrl": "https://new.ngefilm.site/wp-content/uploads/2022/06/20220602_221251.png",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 9539,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Hexated",
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "AsianDrama",
+            "TvSeries",
+            "Movie"
+        ],
+        "version": 1,
+        "internalName": "Ngefilm",
+        "description": "Ngefilm",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/Ngefilm.cs3",
+        "name": "Ngefilm"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=otakudesu.watch&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 22966,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "Anime",
+            "OVA"
+        ],
+        "version": 16,
+        "internalName": "Otakudesu",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/Otakudesu.cs3",
+        "name": "Otakudesu"
+    },
+    {
+        "iconUrl": "https://t2.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://ww03.pencurimovie.bond&size=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 12721,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "Phisher98"
+        ],
+        "tvTypes": [
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 3,
+        "internalName": "Pencurimovie",
+        "description": "Pencurimovie ",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/Pencurimovie.cs3",
+        "name": "Pencurimovie"
+    },
+    {
+        "iconUrl": "https://www.google.com/s2/favicons?domain=https://samehadaku.world&sz=%size%",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/kagemdhamel/CSIndo",
+        "fileSize": 18069,
+        "status": 1,
+        "language": "id",
+        "authors": [
+            "TeKuma25"
+        ],
+        "tvTypes": [
+            "AnimeMovie",
+            "OVA",
+            "Anime"
+        ],
+        "version": 23,
+        "internalName": "Samehadaku",
+        "url": "https://raw.githubusercontent.com/kagemdhamel/CSIndo/builds/Samehadaku.cs3",
+        "name": "Samehadaku"
+    }
+]

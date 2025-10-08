@@ -39,38 +39,55 @@ class Samehadaku : MainAPI() {
     override val mainPage =
             mainPageOf(
                     "$mainUrl/page/" to "Episode Terbaru",
-					"$mainUrl/daftar-anime-2/" to "Daftar Anime",
-					"$mainUrl/daftar-anime-2/?title=&status=&type=&order=popular" to "Top Anime",
+                    "$mainUrl/daftar-anime-2/" to "Daftar Anime",
+                    "$mainUrl/daftar-anime-2/?title=&status=&type=&order=popular" to "Top Anime",
                     "$mainUrl/daftar-anime-2/?title=&status=&type=OVA&order=title" to "Daftar OVA",
-					"$mainUrl/daftar-anime-2/?title=&status=&type=ONA&order=title" to "Daftar ONA",
-					"$mainUrl/daftar-anime-2/?title=&status=&type=Movie&order=title" to "Daftar Movie",
+                    "$mainUrl/daftar-anime-2/?title=&status=&type=ONA&order=title" to "Daftar ONA",
+                    "$mainUrl/daftar-anime-2/?title=&status=&type=Movie&order=title" to "Daftar Movie",
             )
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
-        val items = mutableListOf<HomePageList>()
+        // Bagian ini khusus untuk menangani "load more" atau halaman selanjutnya dari "Episode Terbaru".
+        if (page > 1 && request.name == "Episode Terbaru") {
+            val doc = app.get(request.data + page).document
+            val home = doc.selectFirst("div.post-show")
+                ?.select("ul li")
+                ?.mapNotNull { it.toSearchResult() }
+                ?: emptyList()
+            // Mengembalikan hanya list yang diminta untuk halaman berikutnya
+            return newHomePageResponse(HomePageList(request.name, home, true))
+        }
 
-        if (request.name != "Episode Terbaru" && page <= 1) {
-            val doc = app.get(request.data).document
-            doc.select("div.widget_senction:not(:contains(Baca Komik))").forEach { block ->
-                val header = block.selectFirst("div.widget-title h3")?.ownText() ?: return@forEach
-                val home = block.select("div.animepost").mapNotNull { it.toSearchResult() }
-                if (home.isNotEmpty()) items.add(HomePageList(header, home))
+        // Bagian ini akan membangun seluruh halaman utama dengan semua kategori saat pertama kali dibuka (page = 1)
+        // Menggunakan `apmap` agar permintaan ke setiap kategori berjalan secara paralel dan lebih cepat.
+        val items = mainPage.apmap { req ->
+            try {
+                // Halaman untuk "Episode Terbaru" butuh page 1 secara eksplisit di URL
+                val url = if (req.name == "Episode Terbaru") req.data + "1" else req.data
+                val doc = app.get(url).document
+
+                val home = if (req.name == "Episode Terbaru") {
+                    // Parser khusus untuk "Episode Terbaru"
+                    doc.selectFirst("div.post-show")?.select("ul li")
+                        ?.mapNotNull { it.toSearchResult() } ?: emptyList()
+                } else {
+                    // Parser untuk halaman "Daftar Anime", "Top Anime", dll.
+                    doc.select("div.animepost").mapNotNull { it.toSearchResult() }
+                }
+
+                // "Episode Terbaru" memiliki halaman selanjutnya (hasNextPage = true)
+                val hasNextPage = req.name == "Episode Terbaru"
+                if (home.isNotEmpty()) HomePageList(req.name, home, hasNextPage) else null
+            } catch (e: Exception) {
+                // Jika salah satu kategori gagal dimuat, lewati saja
+                e.printStackTrace()
+                null
             }
-        }
-
-        if (request.name == "Episode Terbaru") {
-            val home =
-                    app.get(request.data + page)
-                            .document
-                            .selectFirst("div.post-show")
-                            ?.select("ul li")
-                            ?.mapNotNull { it.toSearchResult() }
-                            ?: throw ErrorLoadingException("No Media Found")
-            items.add(HomePageList(request.name, home, true))
-        }
+        }.filterNotNull() // Menghapus kategori yang gagal dimuat atau kosong
 
         return newHomePageResponse(items)
     }
+
 
     private fun Element.toSearchResult(): AnimeSearchResponse? {
         val title =
@@ -192,23 +209,23 @@ class Samehadaku : MainAPI() {
             callback: (ExtractorLink) -> Unit
     ) = coroutineScope {
         loadExtractor(url, referer, subtitleCallback) { link ->
-			launch(Dispatchers.IO) {
-				callback.invoke(
-					newExtractorLink(
-						link.name,
-						link.name,
-						link.url,						
-						link.type
-					){
-						this.referer = link.referer
-						this.quality = name.fixQuality()
-						this.headers = link.headers
-						this.extractorData = link.extractorData
-					}
-				)
-			}
-		}
-    }      
+            launch(Dispatchers.IO) {
+                callback.invoke(
+                    newExtractorLink(
+                        link.name,
+                        link.name,
+                        link.url,
+                        link.type
+                    ){
+                        this.referer = link.referer
+                        this.quality = name.fixQuality()
+                        this.headers = link.headers
+                        this.extractorData = link.extractorData
+                    }
+                )
+            }
+        }
+    }
 
     private fun String.fixQuality(): Int {
         return when (this.uppercase()) {

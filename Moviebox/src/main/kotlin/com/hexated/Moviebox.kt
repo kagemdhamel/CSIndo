@@ -6,7 +6,6 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
 import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
-import com.lagradost.nicehttp.RequestBodyTypes
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.Protocol
 import okhttp3.Request
@@ -32,14 +31,13 @@ class Moviebox : MainAPI() {
     // --- CUSTOM CLIENT (HTTP/1.1) ---
     private val customClient by lazy {
         app.baseClient.newBuilder()
-            .protocols(listOf(Protocol.HTTP_1_1)) // Paksa HTTP/1.1 untuk hindari Connection Reset
+            .protocols(listOf(Protocol.HTTP_1_1)) // Paksa HTTP/1.1
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
-    // --- REQUEST HELPER DENGAN HEADER LENGKAP ---
-    // Menambahkan header agar request terlihat seperti browser asli
+    // --- REQUEST HELPER ---
     private fun request(url: String, method: String = "GET", body: RequestBody? = null, referer: String? = null): String? {
         val reqBuilder = Request.Builder()
             .url(url)
@@ -51,7 +49,6 @@ class Moviebox : MainAPI() {
             .header("Sec-Fetch-Mode", "cors")
             .header("Sec-Fetch-Site", "cross-site")
         
-        // Pasang Referer & Origin (Penting untuk bypass proteksi)
         val finalReferer = referer ?: "$mainUrl/"
         reqBuilder.header("Referer", finalReferer)
         reqBuilder.header("Origin", mainUrl)
@@ -118,12 +115,16 @@ class Moviebox : MainAPI() {
             home.addAll(index)
         } else {
             val params = request.data.split(",")
-            val body = mapOf(
+            val bodyMap = mapOf(
                 "channelId" to params.first(),
                 "page" to page,
                 "perPage" to "28",
                 "sort" to params.last()
-            ).toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
+            )
+            
+            // PERBAIKAN: Gunakan RequestBody.create manual agar tidak error unresolved reference
+            val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+            val body = RequestBody.create(mediaType, bodyMap.toJson())
 
             val json = request("$mainAPIUrl/wefeed-h5api-bff/subject/filter", "POST", body) 
                 ?: throw ErrorLoadingException("No Data Found")
@@ -140,12 +141,16 @@ class Moviebox : MainAPI() {
     override suspend fun quickSearch(query: String): List<SearchResponse> = search(query)
 
     override suspend fun search(query: String): List<SearchResponse> {
-        val body = mapOf(
+        val bodyMap = mapOf(
             "keyword" to query,
             "page" to "1",
             "perPage" to "0",
             "subjectType" to "0",
-        ).toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
+        )
+        
+        // PERBAIKAN: Gunakan RequestBody.create manual
+        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+        val body = RequestBody.create(mediaType, bodyMap.toJson())
 
         val json = request("$secondAPIUrl/wefeed-h5-bff/web/subject/search", "POST", body) 
             ?: throw ErrorLoadingException()
@@ -159,7 +164,6 @@ class Moviebox : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val id = url.substringAfterLast("/")
         
-        // Request Detail dengan Header Lengkap
         val json = request("$secondAPIUrl/wefeed-h5-bff/web/subject/detail?subjectId=$id") 
             ?: throw ErrorLoadingException()
             

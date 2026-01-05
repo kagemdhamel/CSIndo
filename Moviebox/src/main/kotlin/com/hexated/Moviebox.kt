@@ -9,10 +9,14 @@ import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.nicehttp.RequestBodyTypes
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import java.util.concurrent.TimeUnit
 
 class Moviebox : MainAPI() {
     override var mainUrl = "https://moviebox.ph"
-    private val apiUrl = "https://fmoviesunblocked.net"
+    private val mainAPIUrl = "https://h5-api.aoneroom.com"
+    private val secondAPIUrl = "https://filmboom.top"
     override val instantLinkLoading = true
     override var name = "Moviebox"
     override val hasMainPage = true
@@ -25,7 +29,27 @@ class Moviebox : MainAPI() {
         TvType.AsianDrama
     )
 
+    // --- PERBAIKAN ERROR PROTOCOL ---
+    // Memaksa client menggunakan HTTP 1.1 agar server tidak memutus koneksi (stream reset)
+    override val client: OkHttpClient = network.cloudflareClient.newBuilder()
+        .protocols(listOf(Protocol.HTTP_1_1))
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+    // --------------------------------
+
     override val mainPage: List<MainPageData> = mainPageOf(
+        "872031290915189720" to "Trending Now",
+        "997144265920760504" to "Popular Movie",
+        "5283462032510044280" to "Drama Indonesia Terkini",
+        "6528093688173053896" to "Trending Indonesian Movies",
+        "4380734070238626200" to "K-Drama",
+        "7736026911486755336" to "Western TV",
+        "8624142774394406504" to "Most Popular C-Drama",
+        "5404290953194750296" to "Trending Anime",
+        "5848753831881965888" to "Indonesian Horror Stories",
+        "1164329479448281992" to "Thai-Drama",
+        "7132534597631837112" to "Animated Film",
         "1,ForYou" to "Movie ForYou",
         "1,Hottest" to "Movie Hottest",
         "1,Latest" to "Movie Latest",
@@ -40,39 +64,58 @@ class Moviebox : MainAPI() {
         "1006,Rating" to "Animation Rating",
     )
 
-    // --- FUNGSI FILTER UTAMA ---
+    // --- FITUR KEAMANAN / FILTER ---
     private fun isSafe(item: Items): Boolean {
         val country = (item.countryName ?: "").lowercase()
         val title = (item.title ?: "").lowercase()
         val genre = (item.genre ?: "").lowercase()
         
-        // Kata kunci yang dilarang
+        // Daftar kata kunci yang diblokir
         val dirtyKeywords = listOf("philippines", "filipina", "pinoy", "18+")
 
+        // Return TRUE jika item bersih (tidak mengandung kata kunci kotor)
         return dirtyKeywords.none { 
             country.contains(it) || title.contains(it) || genre.contains(it)
         }
     }
-    // ---------------------------
+    // ------------------------------
 
     override suspend fun getMainPage(
         page: Int,
         request: MainPageRequest,
     ): HomePageResponse {
-        val params = request.data.split(",")
-        val body = mapOf(
-            "channelId" to params.first(),
-            "page" to page,
-            "perPage" to "24",
-            "sort" to params.last()
-        ).toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
 
-        val home = app.post("$mainUrl/wefeed-h5-bff/web/filter", requestBody = body)
-            .parsedSafe<Media>()?.data?.items
-            ?.filter { isSafe(it) } // Terapkan Filter di sini
-            ?.map {
-                it.toSearchResponse(this)
-            } ?: throw ErrorLoadingException("No Data Found")
+        val home = mutableListOf<SearchResponse>()
+
+        if(!request.data.contains(",")) {
+            val url = "$mainAPIUrl/wefeed-h5api-bff/ranking-list/content?id=${request.data}&page=$page&perPage=12"
+
+            val index = app.get(url).parsedSafe<Media>()?.data?.subjectList
+                ?.filter { isSafe(it) } // Filter list Ranking
+                ?.map {
+                    it.toSearchResponse(this)
+                } ?: throw ErrorLoadingException("No Data Found")
+
+            home.addAll(index)
+        } else {
+            val params = request.data.split(",")
+            val body = mapOf(
+                "channelId" to params.first(),
+                "page" to page,
+                "perPage" to "28",
+                "sort" to params.last()
+            ).toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
+
+            val index = app.post("$mainAPIUrl/wefeed-h5api-bff/subject/filter", requestBody = body)
+                .parsedSafe<Media>()?.data?.items
+                ?.filter { isSafe(it) } // Filter list Kategori
+                ?.map {
+                    it.toSearchResponse(this)
+                } ?: throw ErrorLoadingException("No Data Found")
+
+            home.addAll(index)
+        }
+
 
         return newHomePageResponse(request.name, home)
     }
@@ -81,30 +124,29 @@ class Moviebox : MainAPI() {
 
     override suspend fun search(query: String): List<SearchResponse> {
         return app.post(
-            "$mainUrl/wefeed-h5-bff/web/subject/search", requestBody = mapOf(
+            "$secondAPIUrl/wefeed-h5-bff/web/subject/search", requestBody = mapOf(
                 "keyword" to query,
                 "page" to "1",
                 "perPage" to "0",
                 "subjectType" to "0",
             ).toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
         ).parsedSafe<Media>()?.data?.items
-            ?.filter { isSafe(it) } // Terapkan Filter di pencarian juga
+            ?.filter { isSafe(it) } // Filter hasil pencarian
             ?.map { it.toSearchResponse(this) }
             ?: throw ErrorLoadingException()
     }
 
     override suspend fun load(url: String): LoadResponse {
         val id = url.substringAfterLast("/")
-        val document = app.get("$mainUrl/wefeed-h5-bff/web/subject/detail?subjectId=$id")
+        val document = app.get("$secondAPIUrl/wefeed-h5-bff/web/subject/detail?subjectId=$id")
             .parsedSafe<MediaDetail>()?.data
         val subject = document?.subject
         
-        // --- FILTER STRICT SAAT MEMBUKA HALAMAN ---
-        // Jika lolos dari home/search, kita blokir saat load
+        // --- BLOKIR KONTEN JIKA TIDAK AMAN ---
         if (subject != null && !isSafe(subject)) {
-            throw ErrorLoadingException("Restricted Content (Country/Genre)")
+             throw ErrorLoadingException("Restricted Content (Country/Genre)")
         }
-        // ------------------------------------------
+        // -------------------------------------
 
         val title = subject?.title ?: ""
         val poster = subject?.cover?.url
@@ -115,8 +157,8 @@ class Moviebox : MainAPI() {
         val description = subject?.description
         val trailer = subject?.trailer?.videoAddress?.url
         
-        // Perbaikan: Ganti toRatingInt() yang deprecated dengan Double? untuk Score API
-        val ratingValue = subject?.imdbRatingValue?.toDoubleOrNull()
+        // Menggunakan toDoubleOrNull agar lebih presisi untuk Score API
+        val rating = subject?.imdbRatingValue?.toDoubleOrNull()
         
         val actors = document?.stars?.mapNotNull { cast ->
             ActorData(
@@ -131,7 +173,7 @@ class Moviebox : MainAPI() {
         val recommendations =
             app.get("$mainUrl/wefeed-h5-bff/web/subject/detail-rec?subjectId=$id&page=1&perPage=12")
                 .parsedSafe<Media>()?.data?.items
-                ?.filter { isSafe(it) } // Filter juga rekomendasinya
+                ?.filter { isSafe(it) } // Filter rekomendasi
                 ?.map {
                     it.toSearchResponse(this)
                 }
@@ -159,8 +201,7 @@ class Moviebox : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                // Update Rating ke Score API
-                this.score = Score.from10(ratingValue)
+                this.score = Score.from10(rating)
                 this.actors = actors
                 this.recommendations = recommendations
                 addTrailer(trailer, addRaw = true)
@@ -176,8 +217,7 @@ class Moviebox : MainAPI() {
                 this.year = year
                 this.plot = description
                 this.tags = tags
-                // Update Rating ke Score API
-                this.score = Score.from10(ratingValue)
+                this.score = Score.from10(rating)
                 this.actors = actors
                 this.recommendations = recommendations
                 addTrailer(trailer, addRaw = true)
@@ -193,10 +233,10 @@ class Moviebox : MainAPI() {
     ): Boolean {
 
         val media = parseJson<LoadData>(data)
-        val referer = "$apiUrl/spa/videoPlayPage/movies/${media.detailPath}?id=${media.id}&type=/movie/detail&lang=en"
+        val referer = "$secondAPIUrl/spa/videoPlayPage/movies/${media.detailPath}?id=${media.id}&type=/movie/detail&lang=en"
 
         val streams = app.get(
-            "$apiUrl/wefeed-h5-bff/web/subject/play?subjectId=${media.id}&se=${media.season ?: 0}&ep=${media.episode ?: 0}",
+            "$secondAPIUrl/wefeed-h5-bff/web/subject/play?subjectId=${media.id}&se=${media.season ?: 0}&ep=${media.episode ?: 0}",
             referer = referer
         ).parsedSafe<Media>()?.data?.streams
 
@@ -208,7 +248,7 @@ class Moviebox : MainAPI() {
                     source.url ?: return@map,
                     INFER_TYPE
                 ) {
-                    this.referer = "$apiUrl/"
+                    this.referer = "$secondAPIUrl/"
                     this.quality = getQualityFromName(source.resolutions)
                 }
             )
@@ -218,11 +258,11 @@ class Moviebox : MainAPI() {
         val format = streams?.first()?.format
 
         app.get(
-            "$apiUrl/wefeed-h5-bff/web/subject/caption?format=$format&id=$id&subjectId=${media.id}",
+            "$secondAPIUrl/wefeed-h5-bff/web/subject/caption?format=$format&id=$id&subjectId=${media.id}",
             referer = referer
         ).parsedSafe<Media>()?.data?.captions?.map { subtitle ->
             subtitleCallback.invoke(
-                SubtitleFile(
+                newSubtitleFile(
                     subtitle.lanName ?: "",
                     subtitle.url ?: return@map
                 )

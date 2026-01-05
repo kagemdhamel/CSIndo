@@ -14,14 +14,15 @@ import java.util.concurrent.TimeUnit
 
 class Moviebox : MainAPI() {
     override var mainUrl = "https://moviebox.ph"
-    // Kita gunakan satu server API utama yang stabil
-    private val mainAPIUrl = "https://h5-api.aoneroom.com"
     
+    // SERVER UTAMA (Stabil)
+    private val mainAPIUrl = "https://h5-api.aoneroom.com"
+
     override val instantLinkLoading = true
     override var name = "Moviebox"
     override val hasMainPage = true
     override val hasQuickSearch = true
-    override var lang = "en"
+    override var lang = "id"
     override val supportedTypes = setOf(
         TvType.Movie,
         TvType.TvSeries,
@@ -56,12 +57,23 @@ class Moviebox : MainAPI() {
             if (response.isSuccessful) {
                 response.body?.string()
             } else {
-                // Jika error server, return null biar ditangkap ErrorLoadingException
+                // Return null jika 404/403/500
                 null
             }
         } catch (e: Exception) {
             e.printStackTrace()
             null
+        }
+    }
+
+    // --- FILTER ANTI-PHILIPPINES ---
+    private fun isSafe(item: Items): Boolean {
+        val country = (item.countryName ?: "").lowercase()
+        val title = (item.title ?: "").lowercase()
+        val genre = (item.genre ?: "").lowercase()
+        val dirtyKeywords = listOf("philippines", "filipina", "pinoy", "18+")
+        return dirtyKeywords.none { 
+            country.contains(it) || title.contains(it) || genre.contains(it)
         }
     }
 
@@ -91,22 +103,11 @@ class Moviebox : MainAPI() {
         "1006,Rating" to "Animation Rating",
     )
 
-    // --- FILTER ANTI-PHILIPPINES ---
-    private fun isSafe(item: Items): Boolean {
-        val country = (item.countryName ?: "").lowercase()
-        val title = (item.title ?: "").lowercase()
-        val genre = (item.genre ?: "").lowercase()
-        val dirtyKeywords = listOf("philippines", "filipina", "pinoy", "18+")
-        return dirtyKeywords.none { 
-            country.contains(it) || title.contains(it) || genre.contains(it)
-        }
-    }
-
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val home = mutableListOf<SearchResponse>()
 
+        // NOTE: Home & List menggunakan 'wefeed-h5api-bff'
         if(!request.data.contains(",")) {
-            // Menggunakan wefeed-h5api-bff (Server Utama)
             val url = "$mainAPIUrl/wefeed-h5api-bff/ranking-list/content?id=${request.data}&page=$page&perPage=12"
             
             val json = request(url) ?: throw ErrorLoadingException("No Data Found")
@@ -149,12 +150,11 @@ class Moviebox : MainAPI() {
             "perPage" to "0",
             "subjectType" to "0",
         )
-        
         val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
         val body = RequestBody.create(mediaType, bodyMap.toJson())
 
-        // Ganti wefeed-h5-bff -> wefeed-h5api-bff
-        val json = request("$mainAPIUrl/wefeed-h5api-bff/web/subject/search", "POST", body) 
+        // PERBAIKAN: Search menggunakan 'wefeed-h5-bff' (tanpa 'api')
+        val json = request("$mainAPIUrl/wefeed-h5-bff/web/subject/search", "POST", body) 
             ?: throw ErrorLoadingException()
             
         return parseJson<Media>(json).data?.items
@@ -166,9 +166,9 @@ class Moviebox : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val id = url.substringAfterLast("/")
         
-        // Ganti URL ke mainAPIUrl dan path ke wefeed-h5api-bff
-        val json = request("$mainAPIUrl/wefeed-h5api-bff/web/subject/detail?subjectId=$id") 
-            ?: throw ErrorLoadingException()
+        // PERBAIKAN: Detail menggunakan 'wefeed-h5-bff' (tanpa 'api')
+        val json = request("$mainAPIUrl/wefeed-h5-bff/web/subject/detail?subjectId=$id") 
+            ?: throw ErrorLoadingException("Error loading detail")
             
         val document = parseJson<MediaDetail>(json).data
         val subject = document?.subject
@@ -193,7 +193,8 @@ class Moviebox : MainAPI() {
             )
         }?.distinctBy { it.actor }
 
-        val recJson = request("$mainAPIUrl/wefeed-h5api-bff/web/subject/detail-rec?subjectId=$id&page=1&perPage=12")
+        // PERBAIKAN: Rekomendasi menggunakan 'wefeed-h5-bff'
+        val recJson = request("$mainAPIUrl/wefeed-h5-bff/web/subject/detail-rec?subjectId=$id&page=1&perPage=12")
         val recommendations = recJson?.let { parseJson<Media>(it).data?.items }
             ?.filter { isSafe(it) }
             ?.map { it.toSearchResponse(this) }
@@ -248,9 +249,9 @@ class Moviebox : MainAPI() {
         val media = parseJson<LoadData>(data)
         val referer = "$mainAPIUrl/spa/videoPlayPage/movies/${media.detailPath}?id=${media.id}&type=/movie/detail&lang=en"
 
-        // Ganti wefeed-h5-bff -> wefeed-h5api-bff
+        // PERBAIKAN: Play menggunakan 'wefeed-h5-bff'
         val streamJson = request(
-            "$mainAPIUrl/wefeed-h5api-bff/web/subject/play?subjectId=${media.id}&se=${media.season ?: 0}&ep=${media.episode ?: 0}",
+            "$mainAPIUrl/wefeed-h5-bff/web/subject/play?subjectId=${media.id}&se=${media.season ?: 0}&ep=${media.episode ?: 0}",
             referer = referer
         ) ?: return false
 
@@ -270,8 +271,9 @@ class Moviebox : MainAPI() {
         val id = streams?.first()?.id
         val format = streams?.first()?.format
 
+        // PERBAIKAN: Caption menggunakan 'wefeed-h5-bff'
         val subJson = request(
-            "$mainAPIUrl/wefeed-h5api-bff/web/subject/caption?format=$format&id=$id&subjectId=${media.id}",
+            "$mainAPIUrl/wefeed-h5-bff/web/subject/caption?format=$format&id=$id&subjectId=${media.id}",
             referer = referer
         )
         

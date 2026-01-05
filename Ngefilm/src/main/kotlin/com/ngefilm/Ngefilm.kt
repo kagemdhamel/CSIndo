@@ -125,8 +125,9 @@ class Ngefilm : MainAPI() {
         val document = fetch.document
 
         // --- FILTER PENGAMAN DI HALAMAN DETAIL ---
-        val countryInfo = document.select("div.gmr-moviedata strong:contains(Negara), div.gmr-moviedata strong:contains(Country)")
-            .parent()?.text()?.lowercase() ?: ""
+        // PERBAIKAN: Menggunakan selectFirst agar bisa akses .parent()
+        val countryInfo = document.selectFirst("div.gmr-moviedata strong:contains(Negara), div.gmr-moviedata strong:contains(Country)")
+            ?.parent()?.text()?.lowercase() ?: ""
         
         if (countryInfo.contains("philippines") || countryInfo.contains("filipina")) {
             throw ErrorLoadingException("Konten ini dibatasi (Restricted Content)")

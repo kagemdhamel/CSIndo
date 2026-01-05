@@ -8,7 +8,6 @@ import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.nicehttp.RequestBodyTypes
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -22,7 +21,7 @@ class Moviebox : MainAPI() {
     override var name = "Moviebox"
     override val hasMainPage = true
     override val hasQuickSearch = true
-    override var lang = "en"
+    override var lang = "id"
     override val supportedTypes = setOf(
         TvType.Movie,
         TvType.TvSeries,
@@ -30,33 +29,42 @@ class Moviebox : MainAPI() {
         TvType.AsianDrama
     )
 
-    // --- PERBAIKAN ERROR PROTOCOL (HTTP/2 RESET) ---
-    // Kita buat custom client yang memaksa HTTP 1.1
-    // Menggunakan 'by lazy' agar aman saat inisialisasi
+    // --- CUSTOM CLIENT (HTTP/1.1) ---
     private val customClient by lazy {
         app.baseClient.newBuilder()
-            .protocols(listOf(Protocol.HTTP_1_1))
+            .protocols(listOf(Protocol.HTTP_1_1)) // Paksa HTTP/1.1 untuk hindari Connection Reset
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
-    // Helper function untuk melakukan request dengan customClient
+    // --- REQUEST HELPER DENGAN HEADER LENGKAP ---
+    // Menambahkan header agar request terlihat seperti browser asli
     private fun request(url: String, method: String = "GET", body: RequestBody? = null, referer: String? = null): String? {
         val reqBuilder = Request.Builder()
             .url(url)
             .method(method, body)
+            .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Accept-Language", "en-US,en;q=0.9")
+            .header("Sec-Fetch-Dest", "empty")
+            .header("Sec-Fetch-Mode", "cors")
+            .header("Sec-Fetch-Site", "cross-site")
         
-        referer?.let { reqBuilder.header("Referer", it) }
-        
+        // Pasang Referer & Origin (Penting untuk bypass proteksi)
+        val finalReferer = referer ?: "$mainUrl/"
+        reqBuilder.header("Referer", finalReferer)
+        reqBuilder.header("Origin", mainUrl)
+
         return try {
-            customClient.newCall(reqBuilder.build()).execute().body?.string()
+            val response = customClient.newCall(reqBuilder.build()).execute()
+            response.body?.string()
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
     }
-    // -----------------------------------------------
+    // ----------------------------------------------
 
     override val mainPage: List<MainPageData> = mainPageOf(
         "872031290915189720" to "Trending Now",
@@ -84,7 +92,7 @@ class Moviebox : MainAPI() {
         "1006,Rating" to "Animation Rating",
     )
 
-    // --- FITUR KEAMANAN / FILTER ---
+    // --- FILTER ANTI-PHILIPPINES ---
     private fun isSafe(item: Items): Boolean {
         val country = (item.countryName ?: "").lowercase()
         val title = (item.title ?: "").lowercase()
@@ -94,15 +102,15 @@ class Moviebox : MainAPI() {
             country.contains(it) || title.contains(it) || genre.contains(it)
         }
     }
-    // ------------------------------
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val home = mutableListOf<SearchResponse>()
 
         if(!request.data.contains(",")) {
             val url = "$mainAPIUrl/wefeed-h5api-bff/ranking-list/content?id=${request.data}&page=$page&perPage=12"
-            // Ganti app.get dengan request()
+            
             val json = request(url) ?: throw ErrorLoadingException("No Data Found")
+            
             val index = parseJson<Media>(json).data?.subjectList
                 ?.filter { isSafe(it) }
                 ?.map { it.toSearchResponse(this) } 
@@ -117,9 +125,9 @@ class Moviebox : MainAPI() {
                 "sort" to params.last()
             ).toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
 
-            // Ganti app.post dengan request()
             val json = request("$mainAPIUrl/wefeed-h5api-bff/subject/filter", "POST", body) 
                 ?: throw ErrorLoadingException("No Data Found")
+                
             val index = parseJson<Media>(json).data?.items
                 ?.filter { isSafe(it) }
                 ?.map { it.toSearchResponse(this) } 
@@ -139,9 +147,9 @@ class Moviebox : MainAPI() {
             "subjectType" to "0",
         ).toJson().toRequestBody(RequestBodyTypes.JSON.toMediaTypeOrNull())
 
-        // Ganti app.post dengan request()
         val json = request("$secondAPIUrl/wefeed-h5-bff/web/subject/search", "POST", body) 
             ?: throw ErrorLoadingException()
+            
         return parseJson<Media>(json).data?.items
             ?.filter { isSafe(it) }
             ?.map { it.toSearchResponse(this) }
@@ -150,13 +158,14 @@ class Moviebox : MainAPI() {
 
     override suspend fun load(url: String): LoadResponse {
         val id = url.substringAfterLast("/")
-        // Ganti app.get dengan request()
+        
+        // Request Detail dengan Header Lengkap
         val json = request("$secondAPIUrl/wefeed-h5-bff/web/subject/detail?subjectId=$id") 
             ?: throw ErrorLoadingException()
+            
         val document = parseJson<MediaDetail>(json).data
         val subject = document?.subject
         
-        // --- BLOKIR KONTEN JIKA TIDAK AMAN ---
         if (subject != null && !isSafe(subject)) {
              throw ErrorLoadingException("Restricted Content (Country/Genre)")
         }
@@ -177,7 +186,6 @@ class Moviebox : MainAPI() {
             )
         }?.distinctBy { it.actor }
 
-        // Ganti app.get dengan request() untuk rekomendasi
         val recJson = request("$mainUrl/wefeed-h5-bff/web/subject/detail-rec?subjectId=$id&page=1&perPage=12")
         val recommendations = recJson?.let { parseJson<Media>(it).data?.items }
             ?.filter { isSafe(it) }
@@ -233,7 +241,6 @@ class Moviebox : MainAPI() {
         val media = parseJson<LoadData>(data)
         val referer = "$secondAPIUrl/spa/videoPlayPage/movies/${media.detailPath}?id=${media.id}&type=/movie/detail&lang=en"
 
-        // Ganti app.get dengan request()
         val streamJson = request(
             "$secondAPIUrl/wefeed-h5-bff/web/subject/play?subjectId=${media.id}&se=${media.season ?: 0}&ep=${media.episode ?: 0}",
             referer = referer
@@ -255,7 +262,6 @@ class Moviebox : MainAPI() {
         val id = streams?.first()?.id
         val format = streams?.first()?.format
 
-        // Ganti app.get dengan request() untuk subtitle
         val subJson = request(
             "$secondAPIUrl/wefeed-h5-bff/web/subject/caption?format=$format&id=$id&subjectId=${media.id}",
             referer = referer

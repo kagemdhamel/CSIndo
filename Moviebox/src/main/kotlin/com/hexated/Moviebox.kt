@@ -14,13 +14,14 @@ import java.util.concurrent.TimeUnit
 
 class Moviebox : MainAPI() {
     override var mainUrl = "https://moviebox.ph"
+    // Kita gunakan satu server API utama yang stabil
     private val mainAPIUrl = "https://h5-api.aoneroom.com"
-    private val secondAPIUrl = "https://filmboom.top"
+    
     override val instantLinkLoading = true
     override var name = "Moviebox"
     override val hasMainPage = true
     override val hasQuickSearch = true
-    override var lang = "id"
+    override var lang = "en"
     override val supportedTypes = setOf(
         TvType.Movie,
         TvType.TvSeries,
@@ -45,9 +46,6 @@ class Moviebox : MainAPI() {
             .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
             .header("Accept", "application/json, text/plain, */*")
             .header("Accept-Language", "en-US,en;q=0.9")
-            .header("Sec-Fetch-Dest", "empty")
-            .header("Sec-Fetch-Mode", "cors")
-            .header("Sec-Fetch-Site", "cross-site")
         
         val finalReferer = referer ?: "$mainUrl/"
         reqBuilder.header("Referer", finalReferer)
@@ -55,13 +53,17 @@ class Moviebox : MainAPI() {
 
         return try {
             val response = customClient.newCall(reqBuilder.build()).execute()
-            response.body?.string()
+            if (response.isSuccessful) {
+                response.body?.string()
+            } else {
+                // Jika error server, return null biar ditangkap ErrorLoadingException
+                null
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
     }
-    // ----------------------------------------------
 
     override val mainPage: List<MainPageData> = mainPageOf(
         "872031290915189720" to "Trending Now",
@@ -104,6 +106,7 @@ class Moviebox : MainAPI() {
         val home = mutableListOf<SearchResponse>()
 
         if(!request.data.contains(",")) {
+            // Menggunakan wefeed-h5api-bff (Server Utama)
             val url = "$mainAPIUrl/wefeed-h5api-bff/ranking-list/content?id=${request.data}&page=$page&perPage=12"
             
             val json = request(url) ?: throw ErrorLoadingException("No Data Found")
@@ -122,7 +125,6 @@ class Moviebox : MainAPI() {
                 "sort" to params.last()
             )
             
-            // PERBAIKAN: Gunakan RequestBody.create manual agar tidak error unresolved reference
             val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
             val body = RequestBody.create(mediaType, bodyMap.toJson())
 
@@ -148,11 +150,11 @@ class Moviebox : MainAPI() {
             "subjectType" to "0",
         )
         
-        // PERBAIKAN: Gunakan RequestBody.create manual
         val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
         val body = RequestBody.create(mediaType, bodyMap.toJson())
 
-        val json = request("$secondAPIUrl/wefeed-h5-bff/web/subject/search", "POST", body) 
+        // Ganti wefeed-h5-bff -> wefeed-h5api-bff
+        val json = request("$mainAPIUrl/wefeed-h5api-bff/web/subject/search", "POST", body) 
             ?: throw ErrorLoadingException()
             
         return parseJson<Media>(json).data?.items
@@ -164,7 +166,8 @@ class Moviebox : MainAPI() {
     override suspend fun load(url: String): LoadResponse {
         val id = url.substringAfterLast("/")
         
-        val json = request("$secondAPIUrl/wefeed-h5-bff/web/subject/detail?subjectId=$id") 
+        // Ganti URL ke mainAPIUrl dan path ke wefeed-h5api-bff
+        val json = request("$mainAPIUrl/wefeed-h5api-bff/web/subject/detail?subjectId=$id") 
             ?: throw ErrorLoadingException()
             
         val document = parseJson<MediaDetail>(json).data
@@ -190,7 +193,7 @@ class Moviebox : MainAPI() {
             )
         }?.distinctBy { it.actor }
 
-        val recJson = request("$mainUrl/wefeed-h5-bff/web/subject/detail-rec?subjectId=$id&page=1&perPage=12")
+        val recJson = request("$mainAPIUrl/wefeed-h5api-bff/web/subject/detail-rec?subjectId=$id&page=1&perPage=12")
         val recommendations = recJson?.let { parseJson<Media>(it).data?.items }
             ?.filter { isSafe(it) }
             ?.map { it.toSearchResponse(this) }
@@ -243,10 +246,11 @@ class Moviebox : MainAPI() {
     ): Boolean {
 
         val media = parseJson<LoadData>(data)
-        val referer = "$secondAPIUrl/spa/videoPlayPage/movies/${media.detailPath}?id=${media.id}&type=/movie/detail&lang=en"
+        val referer = "$mainAPIUrl/spa/videoPlayPage/movies/${media.detailPath}?id=${media.id}&type=/movie/detail&lang=en"
 
+        // Ganti wefeed-h5-bff -> wefeed-h5api-bff
         val streamJson = request(
-            "$secondAPIUrl/wefeed-h5-bff/web/subject/play?subjectId=${media.id}&se=${media.season ?: 0}&ep=${media.episode ?: 0}",
+            "$mainAPIUrl/wefeed-h5api-bff/web/subject/play?subjectId=${media.id}&se=${media.season ?: 0}&ep=${media.episode ?: 0}",
             referer = referer
         ) ?: return false
 
@@ -257,7 +261,7 @@ class Moviebox : MainAPI() {
                 newExtractorLink(
                     this.name, this.name, source.url ?: return@map, INFER_TYPE
                 ) {
-                    this.referer = "$secondAPIUrl/"
+                    this.referer = "$mainAPIUrl/"
                     this.quality = getQualityFromName(source.resolutions)
                 }
             )
@@ -267,7 +271,7 @@ class Moviebox : MainAPI() {
         val format = streams?.first()?.format
 
         val subJson = request(
-            "$secondAPIUrl/wefeed-h5-bff/web/subject/caption?format=$format&id=$id&subjectId=${media.id}",
+            "$mainAPIUrl/wefeed-h5api-bff/web/subject/caption?format=$format&id=$id&subjectId=${media.id}",
             referer = referer
         )
         

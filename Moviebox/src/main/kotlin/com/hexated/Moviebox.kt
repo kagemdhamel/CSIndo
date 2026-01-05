@@ -7,9 +7,9 @@ import com.lagradost.cloudstream3.utils.*
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.AppUtils.toJson
 import com.lagradost.nicehttp.RequestBodyTypes
+import com.lagradost.nicehttp.NiceHttp
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import java.util.concurrent.TimeUnit
 
@@ -29,14 +29,21 @@ class Moviebox : MainAPI() {
         TvType.AsianDrama
     )
 
-    // --- PERBAIKAN ERROR PROTOCOL ---
-    // Memaksa client menggunakan HTTP 1.1 agar server tidak memutus koneksi (stream reset)
-    override val client: OkHttpClient = network.cloudflareClient.newBuilder()
-        .protocols(listOf(Protocol.HTTP_1_1))
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
-    // --------------------------------
+    // --- PERBAIKAN ERROR PROTOCOL (HTTP/2 RESET) ---
+    // Kita gunakan init block untuk memaksa HTTP 1.1 pada 'app'
+    init {
+        // Ambil client bawaan CloudStream
+        val baseClient = app.baseClient
+        // Buat client baru dengan konfigurasi HTTP 1.1
+        val newClient = baseClient.newBuilder()
+            .protocols(listOf(Protocol.HTTP_1_1))
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+        // Pasang client baru ke variable 'app'
+        app = NiceHttp(newClient)
+    }
+    // -----------------------------------------------
 
     override val mainPage: List<MainPageData> = mainPageOf(
         "872031290915189720" to "Trending Now",
@@ -73,7 +80,7 @@ class Moviebox : MainAPI() {
         // Daftar kata kunci yang diblokir
         val dirtyKeywords = listOf("philippines", "filipina", "pinoy", "18+")
 
-        // Return TRUE jika item bersih (tidak mengandung kata kunci kotor)
+        // Return TRUE jika item bersih
         return dirtyKeywords.none { 
             country.contains(it) || title.contains(it) || genre.contains(it)
         }

@@ -22,14 +22,13 @@ class Ngefilm : MainAPI() {
 
     override var mainUrl = "https://new31.ngefilm.site"
     private var directUrl: String? = null
-    override var name = "Ngefilm No.18+"
+    override var name = "Ngefilm😎"
     override val hasMainPage = true
     override var lang = "id"
     override val supportedTypes =
         setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AsianDrama)
 
-    // --- MODIFIKASI DI SINI ---
-    // Kita filter mainPageOf agar kategori tertentu tidak muncul di Home
+    // Filter Kategori (Menu Utama)
     override val mainPage = mainPageOf(
         "/page/%d/?s&search=advanced&post_type=movie&index&orderby&genre&movieyear&country&quality=" to "Movies Terbaru",
         "/page/%d/?s=&search=advanced&post_type=tv&index=&orderby=&genre=&movieyear=&country=&quality=" to "Series Terbaru",
@@ -38,19 +37,15 @@ class Ngefilm : MainAPI() {
         "country/usa/page/%d/" to "Film Barat",
         "country/indonesia/page/%d/" to "Film Indonesia",
         "country/malaysia/page/%d/" to "Film Malaysia",
-        "country/philippines/page/%d/" to "Film Philippines", // Ini akan otomatis terhapus oleh filter di bawah
+        "country/philippines/page/%d/" to "Film Philippines", // Akan di-filter
         "country/japan/page/%d/" to "Film Jepang",
         "country/china/page/%d/" to "Film China",
     ).filter { item ->
-        // LOGIKA FILTER/SENSOR:
-        // Ambil nama kategori dalam huruf kecil
         val name = item.name.lowercase()
-        
-        // Return TRUE jika kategori aman (TIDAK mengandung kata-kata di bawah)
         !name.contains("philippines") && 
         !name.contains("filipina") && 
         !name.contains("pinoy") &&
-        !name.contains("18+") 
+        !name.contains("18+")
     }
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
@@ -62,6 +57,20 @@ class Ngefilm : MainAPI() {
     }
 
     private fun Element.toSearchResult(): SearchResponse? {
+        // --- FILTER STRICT UNTUK ITEM (DAFTAR FILM) ---
+        // 1. Cek Text di dalam kartu film (jika ada tulisan Philippines)
+        val allText = this.text().lowercase()
+        // 2. Cek Class HTML (biasanya theme GMR pakai class 'country-philippines')
+        val classNames = this.className().lowercase()
+        
+        if (allText.contains("philippines") || 
+            allText.contains("filipina") || 
+            classNames.contains("philippines") ||
+            classNames.contains("filipina")) {
+            return null // Skip/Sembunyikan film ini dari daftar
+        }
+        // ----------------------------------------------
+
         val title = this.selectFirst("h2.entry-title > a")?.text()?.trim() ?: return null
         val href = fixUrl(this.selectFirst("a")!!.attr("href"))
         val posterUrl = fixUrlNull(this.selectFirst("a > img")?.getImageAttr()).fixImageQuality()
@@ -69,7 +78,6 @@ class Ngefilm : MainAPI() {
         val quality = this.select("div.gmr-qual, div.gmr-quality-item > a")
             .text().trim().replace("-", "")
 
-        // 🔹 Ambil rating (contoh: "5.9")
         val ratingText = this.selectFirst("div.gmr-rating-item")?.ownText()?.trim()
 
         return if (quality.isEmpty()) {
@@ -88,8 +96,6 @@ class Ngefilm : MainAPI() {
             newMovieSearchResponse(title, href, TvType.Movie) {
                 this.posterUrl = posterUrl
                 addQuality(quality)
-
-                // 🔹 Tambahkan score rating
                 this.score = Score.from10(ratingText?.toDoubleOrNull())
             }
         }
@@ -100,7 +106,8 @@ class Ngefilm : MainAPI() {
             "$mainUrl/page/$page/?s=$query&post_type[]=post&post_type[]=tv",
             timeout = 50L
         ).document
-        val results = document.select("article.has-post-thumbnail").mapNotNull { it.toSearchResult() }
+        val results = document.select("article.has-post-thumbnail")
+            .mapNotNull { it.toSearchResult() } // toSearchResult sudah ada filternya
             .toNewSearchResponseList()
         return results
     }
@@ -116,6 +123,15 @@ class Ngefilm : MainAPI() {
         val fetch = app.get(url)
         directUrl = getBaseUrl(fetch.url)
         val document = fetch.document
+
+        // --- FILTER PENGAMAN DI HALAMAN DETAIL ---
+        val countryInfo = document.select("div.gmr-moviedata strong:contains(Negara), div.gmr-moviedata strong:contains(Country)")
+            .parent()?.text()?.lowercase() ?: ""
+        
+        if (countryInfo.contains("philippines") || countryInfo.contains("filipina")) {
+            throw ErrorLoadingException("Konten ini dibatasi (Restricted Content)")
+        }
+        // ------------------------------------------
 
         val title =
             document.selectFirst("h1.entry-title")

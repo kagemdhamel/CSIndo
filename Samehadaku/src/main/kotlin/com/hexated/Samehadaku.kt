@@ -4,6 +4,7 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
+import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
@@ -57,8 +58,8 @@ class Samehadaku : MainAPI() {
             return newHomePageResponse(HomePageList(request.name, home, true))
         }
 
-        // Bagian ini akan membangun seluruh halaman utama dengan semua kategori saat pertama kali dibuka (page = 1)
-        val items = mainPage.apmap { req ->
+        // PERBAIKAN: Menggunakan 'amap' menggantikan 'apmap' agar tidak error deprecated/runBlocking
+        val items = mainPage.amap { req ->
             try {
                 // Halaman untuk "Episode Terbaru" butuh page 1 secara eksplisit di URL
                 val url = if (req.name == "Episode Terbaru") req.data + "1" else req.data
@@ -149,7 +150,6 @@ class Samehadaku : MainAPI() {
             this.year = year
             addEpisodes(DubStatus.Subbed, episodes)
             showStatus = status
-            // Menggunakan rating Int? ke Score
             this.score = Score.from10(rating)
             plot = description
             addTrailer(trailer)
@@ -184,7 +184,6 @@ class Samehadaku : MainAPI() {
         return true
     }
 
-    // Fungsi ini sudah diperbaiki untuk menghindari error runBlocking
     private suspend fun loadFixedExtractor(
         url: String,
         name: String,

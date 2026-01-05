@@ -4,12 +4,13 @@ import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.LoadResponse.Companion.addAniListId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addMalId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addTrailer
-import com.lagradost.cloudstream3.amap
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.Qualities
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.jsoup.nodes.Element
 
 class Samehadaku : MainAPI() {
@@ -18,17 +19,12 @@ class Samehadaku : MainAPI() {
     override val hasMainPage = true
     override var lang = "id"
     override val hasDownloadSupport = true
-    override val supportedTypes = setOf(
-        TvType.Anime,
-        TvType.AnimeMovie,
-        TvType.OVA
-    )
+    override val supportedTypes = setOf(TvType.Anime, TvType.AnimeMovie, TvType.OVA)
 
     companion object {
         fun getType(t: String): TvType {
             return if (t.contains("OVA", true) || t.contains("Special", true)) TvType.OVA
-            else if (t.contains("Movie", true)) TvType.AnimeMovie
-            else TvType.Anime
+            else if (t.contains("Movie", true)) TvType.AnimeMovie else TvType.Anime
         }
 
         fun getStatus(t: String): ShowStatus {
@@ -42,37 +38,52 @@ class Samehadaku : MainAPI() {
 
     override val mainPage = mainPageOf(
         "$mainUrl/page/" to "Episode Terbaru",
-        "$mainUrl/" to "HomePage",
+        "$mainUrl/daftar-anime-2/" to "Daftar Anime",
+        "$mainUrl/daftar-anime-2/?title=&status=&type=&order=popular" to "Top Anime",
+        "$mainUrl/daftar-anime-2/?title=&status=&type=OVA&order=title" to "Daftar OVA",
+        "$mainUrl/daftar-anime-2/?title=&status=&type=ONA&order=title" to "Daftar ONA",
+        "$mainUrl/daftar-anime-2/?title=&status=&type=Movie&order=title" to "Daftar Movie",
     )
 
-    override suspend fun getMainPage(
-        page: Int,
-        request: MainPageRequest
-    ): HomePageResponse {
-        val items = mutableListOf<HomePageList>()
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        // Bagian ini khusus untuk menangani "load more" atau halaman selanjutnya dari "Episode Terbaru".
+        if (page > 1 && request.name == "Episode Terbaru") {
+            val doc = app.get(request.data + page).document
+            val home = doc.selectFirst("div.post-show")
+                ?.select("ul li")
+                ?.mapNotNull { it.toSearchResult() }
+                ?: emptyList()
+            // Mengembalikan hanya list yang diminta untuk halaman berikutnya
+            return newHomePageResponse(HomePageList(request.name, home, true))
+        }
 
-        if (request.name != "Episode Terbaru" && page <= 1) {
-            val doc = app.get(request.data).document
-            doc.select("div.widget_senction:not(:contains(Baca Komik))").forEach { block ->
-                val header = block.selectFirst("div.widget-title h3")?.ownText() ?: return@forEach
-                val home = block.select("div.animepost").mapNotNull {
-                    it.toSearchResult()
+        // Bagian ini akan membangun seluruh halaman utama dengan semua kategori saat pertama kali dibuka (page = 1)
+        val items = mainPage.apmap { req ->
+            try {
+                // Halaman untuk "Episode Terbaru" butuh page 1 secara eksplisit di URL
+                val url = if (req.name == "Episode Terbaru") req.data + "1" else req.data
+                val doc = app.get(url).document
+
+                val home = if (req.name == "Episode Terbaru") {
+                    // Parser khusus untuk "Episode Terbaru"
+                    doc.selectFirst("div.post-show")?.select("ul li")
+                        ?.mapNotNull { it.toSearchResult() } ?: emptyList()
+                } else {
+                    // Parser untuk halaman "Daftar Anime", "Top Anime", dll.
+                    doc.select("div.animepost").mapNotNull { it.toSearchResult() }
                 }
-                if (home.isNotEmpty()) items.add(HomePageList(header, home))
-            }
-        }
 
-        if (request.name == "Episode Terbaru") {
-            val home =
-                app.get(request.data + page).document.selectFirst("div.post-show")?.select("ul li")
-                    ?.mapNotNull {
-                        it.toSearchResult()
-                    } ?: throw ErrorLoadingException("No Media Found")
-            items.add(HomePageList(request.name, home, true))
-        }
+                // "Episode Terbaru" memiliki halaman selanjutnya (hasNextPage = true)
+                val hasNextPage = req.name == "Episode Terbaru"
+                if (home.isNotEmpty()) HomePageList(req.name, home, hasNextPage) else null
+            } catch (e: Exception) {
+                // Jika salah satu kategori gagal dimuat, lewati saja
+                e.printStackTrace()
+                null
+            }
+        }.filterNotNull()
 
         return newHomePageResponse(items)
-
     }
 
     private fun Element.toSearchResult(): AnimeSearchResponse? {
@@ -85,14 +96,11 @@ class Samehadaku : MainAPI() {
             this.posterUrl = posterUrl
             addSub(epNum)
         }
-
     }
 
     override suspend fun search(query: String): List<SearchResponse> {
         val document = app.get("$mainUrl/?s=$query").document
-        return document.select("main#main div.animepost").mapNotNull {
-            it.toSearchResult()
-        }
+        return document.select("main#main div.animepost").mapNotNull { it.toSearchResult() }
     }
 
     override suspend fun load(url: String): LoadResponse? {
@@ -112,12 +120,10 @@ class Samehadaku : MainAPI() {
         val status = getStatus(
             document.selectFirst("div.spe > span:contains(Status)")?.ownText() ?: return null
         )
-        val type =
-            getType(
-                document.selectFirst("div.spe > span:contains(Type)")?.ownText()?.trim()
-                    ?.lowercase()
-                    ?: "tv"
-            )
+        val type = getType(
+            document.selectFirst("div.spe > span:contains(Type)")?.ownText()?.trim()
+                ?.lowercase() ?: "tv"
+        )
         val rating = document.selectFirst("span.ratingValue")?.text()?.trim()?.toIntOrNull()
         val description = document.select("div.desc p").text().trim()
         val trailer = document.selectFirst("div.trailer-anime iframe")?.attr("src")
@@ -127,7 +133,7 @@ class Samehadaku : MainAPI() {
             val episode = Regex("Episode\\s?(\\d+)").find(header.text())?.groupValues?.getOrNull(1)
                 ?.toIntOrNull()
             val link = fixUrl(header.attr("href"))
-            newEpisode(link) {this.episode = episode}
+            newEpisode(link) { this.episode = episode }
         }.reversed()
 
         val recommendations = document.select("aside#sidebar ul li").mapNotNull {
@@ -143,6 +149,7 @@ class Samehadaku : MainAPI() {
             this.year = year
             addEpisodes(DubStatus.Subbed, episodes)
             showStatus = status
+            // Menggunakan rating Int? ke Score
             this.score = Score.from10(rating)
             plot = description
             addTrailer(trailer)
@@ -151,7 +158,6 @@ class Samehadaku : MainAPI() {
             addMalId(tracker?.malId)
             addAniListId(tracker?.aniId?.toIntOrNull())
         }
-
     }
 
     override suspend fun loadLinks(
@@ -163,7 +169,7 @@ class Samehadaku : MainAPI() {
 
         val document = app.get(data).document
 
-        document.select("div#downloadb li").amap { el ->
+        document.select("div#downloadb li").map { el ->
             el.select("a").amap {
                 loadFixedExtractor(
                     fixUrl(it.attr("href")),
@@ -178,15 +184,16 @@ class Samehadaku : MainAPI() {
         return true
     }
 
+    // Fungsi ini sudah diperbaiki untuk menghindari error runBlocking
     private suspend fun loadFixedExtractor(
         url: String,
         name: String,
         referer: String? = null,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
-    ) {
+    ) = coroutineScope {
         loadExtractor(url, referer, subtitleCallback) { link ->
-            runBlocking {
+            launch(Dispatchers.IO) {
                 callback.invoke(
                     newExtractorLink(
                         link.name,
@@ -216,5 +223,4 @@ class Samehadaku : MainAPI() {
     private fun String.removeBloat(): String {
         return this.replace(Regex("(Nonton)|(Anime)|(Subtitle\\sIndonesia)"), "").trim()
     }
-
 }
